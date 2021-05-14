@@ -1,13 +1,13 @@
 # DATA419_project
 Group project for DATA419: Online Communities and Social Networks
 
-```
-We will be required to:
- - Formulate a research question regarding one (or more) online community
- - Gather the necessary data (if legal and ethical)
- - Choose the right statistical techniques
- - Explain your results in a concise but technically rigorous report (with the necessary visualisations)
-```
+
+We are required to:
+- [x] Formulate a research question regarding one (or more) online community
+- [x] Gather the necessary data (if legal and ethical)
+- [ ] Choose the right statistical techniques
+- [ ] Explain your results in a concise but technically rigorous report (with the necessary visualisations)
+
 
 ### Research question:
 Can a network's structure be used to predict the growth of a community
@@ -15,8 +15,8 @@ Can a network's structure be used to predict the growth of a community
 
 ### Data source and collection method:
 * Data will be collected from Twitter using the ![twint](https://github.com/twintproject/twint) tool. 
-* It will be collected in chunks of 24 hours (1 day) over a period of ...
-* The twint search parameters will be ...
+* It will be collected in chunks of 7 days (1 week) over a period of 1 year (52 weeks).
+* The twint search parameters will be ... (see network_scraper.py).
 
 
 ### Statistical techniques:
@@ -28,9 +28,9 @@ Can a network's structure be used to predict the growth of a community
 ## Work distrobution:
 
 **Network:** - Kayle
-* Which?
-* Where?
-* When?
+* Which? - Bitcoin, Elections, ...
+* Where? - Twitter, with New Zealand geolocation.
+* When? - 1 week chunks over at least a year period.
 
 
 **Structure:** - House
@@ -42,6 +42,14 @@ Can a network's structure be used to predict the growth of a community
 
 **Growth:** - Nana
 * How do we measure it?
+
+
+**Predit:** - Selina
+* How?
+
+
+## Lab sessions:
+
 ```
 Lab Session at 12/05/2021 -nana 
 
@@ -66,6 +74,3 @@ Research analyst objects:
             The weight of edge  
             Network on a different relationship: like “mentions” instead of conversation  
 ```
-
-**Predit:** - Selina
-* How?
