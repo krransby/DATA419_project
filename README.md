@@ -1,5 +1,5 @@
 # DATA419_project
-Group project for DATA419: Online Communities and Social Networks
+Group project for DATA419: Online Communities and Social Networks (21S1)
 
 
 We are required to:
@@ -10,7 +10,7 @@ We are required to:
 
 
 ### Research question:
-Can a network's structure be used to predict the growth of a community
+Can a network's structure be used to predict the growth of a community?
 
 
 ### Data source and collection method:
@@ -19,18 +19,12 @@ Can a network's structure be used to predict the growth of a community
 * The twint search parameters will be ... (see network_scraper.py).
 
 
-### Statistical techniques:
-* Transitivty
-* Motif Distrobution
-* . . .
-
-
 ## Work distrobution:
 
 **Network:** - Kayle
-* Which? - Bitcoin, Elections, ...
-* Where? - Twitter, with New Zealand geolocation.
-* When? - 1 week chunks over at least a year period.
+* Which? - 2020 Elections in New Zealand.
+* Where? - Twitter, within New Zealand geolocation.
+* When? - 1 week chunks over from 2020 (52 chunks).
 
 
 **Structure:** - House
@@ -47,6 +41,28 @@ Can a network's structure be used to predict the growth of a community
 **Predit:** - Selina
 * How?
 
+
+## Data structures:
+
+### Scraped data:
+| id | conversation_id | date | user_id | username | mentions | hashtags | replies_count | retweets_count | likes_count | tweet | urls | week |
+| ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+| Tweet ID | Conversation ID the tweet is part of | Date the tweet was posted | User's ID | User's Handle | Mentioned users | Hashtags used in tweet | # Replies to tweet | # retweets | # likes the tweet has | Tweet content (may be corrupted) | URL(s) in the tweet | Week the tweet was posted |
+
+
+(please see the ![cleaned tweet .csv file](https://github.com/krransby/DATA419_project/blob/main/Tweet%20file/tweets_cleaned_week.csv) for up-to-date data)
+
+
+### Statistical techniques to use as predictors:
+| Transitivty | Motif Distrobution | . . . |
+| ------------- | ------------- | ------------- |
+
+
+### Inputs required for prediction:
+
+| Y | Predictors | Group | Time |
+| ------------- | ------------- | ------------- | ------------- |
+| Target value | Predictors (in table above) | Community ID | Time ('week' field in first table) |
 
 ## Lab sessions:
 
@@ -72,5 +88,5 @@ Research analyst objects:
             To be discussed: the number (the density) change over a certain period of time                       
  More to include:  
             The weight of edge  
-            Network on a different relationship: like ‚Äúmentions‚Äù instead of conversation  
+            Network on a different relationship: like ìmentionsî instead of conversation  
 ```

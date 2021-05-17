@@ -8,7 +8,7 @@
 
 __author__ = "Kayle Ransby - 34043590"
 __credits__ = ["Kayle Ransby", "Shuzhen Heng", "Zhihao Song", "Hui Chen", "Giulio Dalla Riva"]
-__version__ = "1.0.1"
+__version__ = "1.1.2"
 __license__ = "???"
 
 
@@ -21,9 +21,27 @@ import nest_asyncio
 
 # 'Globals'
 
-SEARCH = ["Bitcoin", "Blockchain", "Crypto", "Ethereum", "Dogecoin", "cryptocurrency", "cryptonews", "cryptoexchange", "cryptoinvesting"]
-WEEKS = 1
+SEARCH = [
+    "nzpol", "NZParliament", "JudithCollinsMP", "johnkeypm", "winstonpeters",
+    "RusselNorman", "jacindaardern", "patrickgowernz", "dbseymour", "ardern", 
+    "collins", "NZNationalParty", "National Party", "nzlabour", "Labour Party",
+    "top_nz", "The Opportunities Party", "actparty", "NZFirst", "Green Party", 
+    "Maori Party"
+          ]
+
+# year, month, day
+END_DATE = datetime.datetime(2020, 12, 31)
+WEEKS = 52
+
+# directory the .csv files will be placed in
 OUTDIR = "Tweet file"
+
+# lat,long,radius: see here https://www.calcmaps.com/map-radius/
+NZ = "-41.2728,173.2995,800km"              # NZ
+NZAU = "-25.541822,146.437553,3361.56km"    # NZAU
+
+# Fields to be written to the .csv file
+CSV_FORMAT = ["id", "conversation_id", "date", "user_id", "username", "mentions", "hashtags", "replies_count", "retweets_count", "likes_count", "tweet", "urls"]
 
 
 def config(date_start, date_end, term):
@@ -48,8 +66,8 @@ def config(date_start, date_end, term):
     
     # Configure
     c = twint.Config()
-    c.Geo = "-41.2728,173.2995,800km" # lat,long,radius: see here https://www.calcmaps.com/map-radius/
-    c.Custom["tweet"] = ["id", "conversation_id", "date", "user_id", "username", "mentions", "hashtags"]
+    c.Geo = NZ
+    c.Custom["tweet"] = CSV_FORMAT
     c.Since = str(date_start)
     c.Until = str(date_end)
     c.Store_csv = True
@@ -76,13 +94,15 @@ def retrieve_csv(num_weeks):
     """
     
     # Initial start and end date range
-    date_end = datetime.date.today()
+    date_end = END_DATE
     date_start = date_end - datetime.timedelta(days=7)
     
     print("Begin tweet scraping ...")
     
     while num_weeks > 0:
         for term in SEARCH:
+            
+            print("Scraping date range", str(num_weeks) + ":", str(date_start), "-", str(date_end) + ".")
             
             # Get config
             c = config(date_start, date_end, term)
@@ -120,6 +140,47 @@ def clean_csv():
             out_file.write(line)
     
     print("Duplicate entries removed.\n")
+    
+    print(len(seen), "unique tweets found.")
+
+
+def identify_week():
+    """
+    Function to add the 'week' of the given tweet to the .csv file
+
+    Returns
+    -------
+    None.
+
+    """
+       
+    with open(OUTDIR + '/tweets_cleaned.csv', 'r', encoding="utf8") as in_file, open(OUTDIR + '/tweets_cleaned_week.csv', 'w', encoding="utf8") as out_file:
+        
+        header = in_file.readline().strip().split(',') # skip the first line
+        
+        header.append("week\n")
+        
+        out_file.write(','.join(header))
+        
+        for line in in_file:
+            tweet_date = datetime.datetime.strptime(line.split(',')[CSV_FORMAT.index('date')], "%Y-%m-%d")
+            
+            week = WEEKS
+            date_end = END_DATE
+            date_start = date_end - datetime.timedelta(days=7)
+            
+            while week > 0:
+                
+                if date_start < tweet_date <= date_end:
+                    line = line.strip()
+                    line += ',{}\n'.format(week)                    
+                    out_file.write(line)
+                    break
+                else:
+                    # Move back one week
+                    date_start -= datetime.timedelta(days=7)
+                    date_end -= datetime.timedelta(days=7)
+                    week -= 1
 
 
 def main():
@@ -133,12 +194,14 @@ def main():
     """
     
     # Get tweet data
-    retrieve_csv(WEEKS)
+    retrieve_csv(WEEKS.copy())
     
     # Clean tweet data
     clean_csv()
     
-
+    # Add the week tweets were posted to new .csv file
+    identify_week()
+    
 
 if __name__ == '__main__':
     # fix "RuntimeError: This event loop is already running"
