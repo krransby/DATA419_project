@@ -49,14 +49,15 @@ Can a network's structure be used to predict the growth of a community?
 | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
 | Tweet ID | Conversation ID the tweet is part of | Date the tweet was posted | User's ID | User's Handle | Mentioned users | Hashtags used in tweet | # Replies to tweet | # retweets | # likes the tweet has | Tweet content (may be corrupted) | URL(s) in the tweet | Week the tweet was posted |
 
-
 (please see the ![cleaned tweet .csv file](https://github.com/krransby/DATA419_project/blob/main/Tweet%20file/tweets_cleaned_week.csv) for up-to-date data)
 
 
 ### Statistical techniques to use as predictors:
-| Transitivty | Motif Distrobution | . . . |
-| ------------- | ------------- | ------------- |
+| Transitivty Ratio | Motif Distrobution | Average Degree | Modularity | Density | Clustering Coefficient |
+| ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+|  |  |  |  | D = L/N |  |
 
+(These predictors will be based on each one-week period)
 
 ### Inputs required for prediction:
 
@@ -88,5 +89,5 @@ Research analyst objects:
             To be discussed: the number (the density) change over a certain period of time                       
  More to include:  
             The weight of edge  
-            Network on a different relationship: like ìmentionsî instead of conversation  
+            Network on a different relationship: like ‚Äúmentions‚Äù instead of conversation  
 ```
