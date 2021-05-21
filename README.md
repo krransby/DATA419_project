@@ -5,7 +5,7 @@ Group project for DATA419: Online Communities and Social Networks (21S1)
 We are required to:
 - [x] Formulate a research question regarding one (or more) online community
 - [x] Gather the necessary data (if legal and ethical)
-- [ ] Choose the right statistical techniques
+- [x] Choose the right statistical techniques
 - [ ] Explain your results in a concise but technically rigorous report (with the necessary visualisations)
 
 
@@ -23,7 +23,7 @@ Can a network's structure be used to predict the growth of a community?
 
 **Network:** - Kayle
 * Which? - 2020 Elections in New Zealand.
-* Where? - Twitter, within New Zealand geolocation.
+* Where? - Twitter, ~~within New Zealand geolocation.~~
 * When? - 1 week chunks over from 2020 (52 chunks).
 
 
@@ -53,11 +53,11 @@ Can a network's structure be used to predict the growth of a community?
 
 
 ### Statistical techniques to use as predictors:
-| Transitivty Ratio | Motif Distrobution | Average Degree | Modularity | Density | Clustering Coefficient |
-| ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-|  |  |  |  | D = L/N |  |
+| Average Degree | Modularity | Transitivty Ratio / Clustering Coefficient | Motif Distrobution | Density |
+| ------------- | ------------- | ------------- | ------------- | ------------- |
+|  |  |  |  | D = L/N |
 
-(These predictors will be based on each one-week period)
+(These predictors will be based on each community within the one-week period)
 
 ### Inputs required for prediction:
 
@@ -89,5 +89,5 @@ Research analyst objects:
             To be discussed: the number (the density) change over a certain period of time                       
  More to include:  
             The weight of edge  
-            Network on a different relationship: like ‚Äúmentions‚Äù instead of conversation  
+            Network on a different relationship: like ìmentionsî instead of conversation  
 ```
