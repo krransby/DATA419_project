@@ -1,3 +1,4 @@
+  
 ---
 title: "Group Project"
 author: "Kayle Ransby"
@@ -7,20 +8,24 @@ output: pdf_document
 
 Load the libraries we require.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+
 library(tidyverse)
 library(tidygraph)
 library(igraph)
 library(ggraph)
+
 ```
 
 
 Here we load the tweet data into the ```tweet_dataframe``` variable.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+
 # Load tweet data
 tweet_dataframe <- "Tweet file/tweets_cleaned_week.csv" %>%
   read_csv()
+
 ```
 
 
@@ -31,7 +36,8 @@ so filter out any entries that have either variable empty.
 # Filter tweet data
 tweet_dataframe <- tweet_dataframe %>% 
   filter(!is.na(user_id),
-         !is.na(conversation_id))
+         !is.na(conversation_id),
+         !is.na(week))
 ```
 
 
@@ -39,10 +45,15 @@ Here we are creating the links from the nodes (user_id) to the relations (conver
 We also include the week of the tweet for later on.
 
 ```{r}
-# Retrieve links from dataframe
-links <- tweet_dataframe %>%
-    select(user_id, conversation_id, week) %>%
-    rename(to = user_id,from = conversation_id)
+
+# Retrieve bipartite links from dataframe
+bipartite_links <- tweet_dataframe %>%
+  select(user_id, conversation_id, week) %>%
+  rename(to = user_id,from = conversation_id) %>%
+  group_by(to, from, week) %>%
+  slice(1) %>%
+  ungroup()
+
 ```
 
 
@@ -51,12 +62,11 @@ The week variable here is based on the from column.
 
 ```{r}
 # generate network from links
-user_links <- links %>%
-    full_join(links, by = "from") %>%   # we are full_joining links with links, and connecting them via the column from
+user_links <- bipartite_links %>%
+    full_join(bipartite_links, by = c("from", "week")) %>%   # we are full_joining links with links, and connecting them via the column from
     filter(to.x != to.y) %>%            # we don't care about self links
     select(-from) %>%                   # we only care about the users, not the tweets now
-    select(-week.y) %>%                 # Drop the duplicate week column
-    rename(from = to.x, to = to.y, week = week.x)      # and we still want the from and to names for the columns
+    rename(from = to.x, to = to.y)      # and we still want the from and to names for the columns
 
 user_links <- user_links[, c('from', 'to', 'week')] # change the order of the columns to make it easer to view
 ```
@@ -65,38 +75,134 @@ user_links <- user_links[, c('from', 'to', 'week')] # change the order of the co
 Create a graph object from the use_links dataframe; filtering by week 52.
 
 ```{r}
-tweet_network <- user_links %>%
-    filter(week == 52) %>%      # Change the week you want to filter here
+# tweet_network <- user_links %>%
+#     filter(week == 52) %>%      # Change the week you want to filter here
+#     graph_from_data_frame(directed = FALSE) %>%
+#     as_tbl_graph()
+
+weekly_network_graph     <- list()  # tidygraph list of the weekly network 
+weekly_network_dataframe <- list()  # dataframe list of the weekly network 
+
+weeknum =1        #Starting week number
+totalweeks =52    #finishing week number
+threshold=0.1     #community detecting threshold
+
+
+####build weekly network, detect local communities by louvain method
+n=1
+for (n in 1:totalweeks){
+  
+  tweet_network <- user_links %>%
+    filter(week == n) %>%      # Change the week you want to filter here
     graph_from_data_frame(directed = FALSE) %>%
     as_tbl_graph()
+  
+  #community detection
+  weekly_network_graph[[n]] <- tweet_network %>%
+    activate(nodes) %>%
+    filter(!node_is_isolated()) %>% #filtering the isolated nodes
+    mutate(degree = centrality_degree(),         #Calculate the centrality of nodes on degree level
+           community = group_louvain(),          #Group the nodes into communities
+           transitivity = local_transitivity(),  #calculate the transitivity
+           modularity = graph_modularity(community),    # Calculate the community's modularity
+           father_community = "0",               #initial father community
+           son_community = "0")                  #initial son community
+  
+  
+  #save network to dataframe format
+  weekly_network_dataframe[[n]] <- as_tibble(weekly_network_graph[[n]])
+}
+
 ```
 
 
-Here we are extracting the mean degree, modularity and transitivity of each community in the network at week 52 based on the louvian community detection algorithm.
+find the father communities and son communities week by week
+
+```{r message=FALSE, warning=FALSE}
+for (weeknum in 1:totalweeks){
+  
+  #get the commmunity numbers from current week
+  reptimebase <- weekly_network_dataframe[[weeknum]] %>% 
+    arrange(desc(community)) %>% 
+    select(community) %>% 
+    top_n(1) %>% 
+    unique()%>% 
+    as.integer()
+  
+  #get the community numbers from next week
+  if (weeknum < totalweeks){#not
+    reptimenext <- weekly_network_dataframe[[weeknum+1]] %>% 
+      arrange(desc(community)) %>% 
+      select(community) %>% 
+      top_n(1) %>% 
+      unique() %>% 
+      as.integer()
+  }else
+    reptimenext <- 1
+  
+  #initial
+  n=1
+  m=1
+  l=1
+  proportion <- list()
+  
+  #Compare nodes in every community in current week and the week after
+  for (n in 1:reptimebase){  
+    
+    nodes_current_community <- weekly_network_dataframe[[weeknum]] %>% 
+      filter(community == n) %>% 
+      select(name) 
+
+    for (m in 1:reptimenext){
+      if (weeknum < totalweeks){
+        
+          nodes_nextweek_community <- weekly_network_dataframe[[weeknum+1]] %>% 
+            filter(community == m) %>% 
+            select(name) 
+          
+          ### get the intersection of communities from current week and next week
+          internodes <- intersect(nodes_current_community,nodes_nextweek_community) 
+          ### calculate the proportion of intersection
+          proportion <- c(proportion,count(internodes)/count(nodes_current_community))
+          
+          ### if proportion bigger than threshold:
+          ### ---1, update the son_community for current week
+          ### ---2, update the father_community value for next week community
+          ### ---3, if it is the last week, finish the cooperation
+          if (proportion[[l]] > threshold){
+            weekly_network_dataframe[[weeknum]][weekly_network_dataframe[[weeknum]]$community==n, "son_community"] <- as.character(m)
+            weekly_network_dataframe[[weeknum+1]][weekly_network_dataframe[[weeknum+1]]$community==m, "father_community"] <- as.character(n)
+        }
+        l=l+1
+      }
+    }
+  }
+}
+```
 
 ```{r}
-predictors <- tweet_network %N>%                  # Pass only the nodes forward
-  mutate(degree = centrality_degree(),            # Calculate the degree of each node
-         community = group_louvain(),                 # Group the nodes into communities
-         modularity = graph_modularity(community),    # Calculate the community's modularity
-         transitivity = local_transitivity()) %>% # calculate the local transitivity of each node
-  filter(!node_is_isolated()) %>%                 # Filter out isolated nodes (otherwise we'd have heaps of communities)
-  data.frame() %>%
-  group_by(community) %>%
-  summarise(mean_degree = mean(degree), modularity = mean(modularity), transitivity = mean(transitivity))
-
-predictors
+weekly_network_dataframe
 ```
 
 
-Plotting the network grouped by it's communities based on the louvian algorithim at week 52.
 
+check the community plot for certain week.
 ```{r}
-tweet_network %N>%
-    mutate(community = group_louvain()) %>% # OR as.factor(group_infomap())
+week = 1
+weekly_network_graph[[week]] %N>%
     ggraph(layout = 'kk') + 
-    geom_edge_link(aes(alpha = ..index..), show.legend = FALSE) + 
-    geom_node_point(aes(colour = community), size = 5) + 
+    geom_edge_link(show.legend = FALSE) + 
+    geom_node_point(aes(color = as.factor(community)), size = 5) + 
+    theme_graph()
+
+```
+
+plot the whole network
+```{r}
+user_links %>% 
+    ggraph(layout = 'stress') + 
+    geom_edge_link(show.legend = FALSE) + 
+    geom_node_point() +
     theme_graph()
 ```
 
