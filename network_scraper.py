@@ -14,6 +14,7 @@ __license__ = "???"
 
 # Imports
 
+from copy import deepcopy
 import datetime
 import twint
 import nest_asyncio
@@ -24,9 +25,7 @@ import nest_asyncio
 SEARCH = [
     "nzpol", "NZParliament", "JudithCollinsMP", "johnkeypm", "winstonpeters",
     "RusselNorman", "jacindaardern", "patrickgowernz", "dbseymour", "ardern", 
-    "collins", "NZNationalParty", "National Party", "nzlabour", "Labour Party",
-    "top_nz", "The Opportunities Party", "actparty", "NZFirst", "Green Party", 
-    "Maori Party"
+    "collins", "NZNationalParty", "nzlabour", "top_nz", "NZFirst", "Maori Party"
           ]
 
 # year, month, day
@@ -66,7 +65,7 @@ def config(date_start, date_end, term):
     
     # Configure
     c = twint.Config()
-    c.Geo = NZ
+    c.Geo = NZ                     # Uncomment this line to restrict search to NZ
     c.Custom["tweet"] = CSV_FORMAT
     c.Since = str(date_start)
     c.Until = str(date_end)
@@ -78,7 +77,7 @@ def config(date_start, date_end, term):
     return c
 
 
-def retrieve_csv(num_weeks):
+def retrieve_csv():
     """
     Generates a .csv file containing tweet data to be used for network construction.
 
@@ -96,6 +95,8 @@ def retrieve_csv(num_weeks):
     # Initial start and end date range
     date_end = END_DATE
     date_start = date_end - datetime.timedelta(days=7)
+    
+    num_weeks = deepcopy(WEEKS)
     
     print("Begin tweet scraping ...")
     
@@ -163,24 +164,31 @@ def identify_week():
         out_file.write(','.join(header))
         
         for line in in_file:
-            tweet_date = datetime.datetime.strptime(line.split(',')[CSV_FORMAT.index('date')], "%Y-%m-%d")
             
-            week = WEEKS
-            date_end = END_DATE
-            date_start = date_end - datetime.timedelta(days=7)
+            line_list = line.split(',')
             
-            while week > 0:
+            if len(line_list) == len(CSV_FORMAT): # only write lines that have all variables
+            
+                line_date = line_list[CSV_FORMAT.index('date')]
                 
-                if date_start < tweet_date <= date_end:
-                    line = line.strip()
-                    line += ',{}\n'.format(week)                    
-                    out_file.write(line)
-                    break
-                else:
-                    # Move back one week
-                    date_start -= datetime.timedelta(days=7)
-                    date_end -= datetime.timedelta(days=7)
-                    week -= 1
+                tweet_date = datetime.datetime.strptime(line_date, "%Y-%m-%d")
+                
+                week = deepcopy(WEEKS)
+                date_end = END_DATE
+                date_start = date_end - datetime.timedelta(days=7)
+                
+                while week > 0:
+                    
+                    if date_start < tweet_date <= date_end:
+                        line = line.strip()
+                        line += ',{}\n'.format(week)                    
+                        out_file.write(line)
+                        break
+                    else:
+                        # Move back one week
+                        date_start -= datetime.timedelta(days=7)
+                        date_end -= datetime.timedelta(days=7)
+                        week -= 1
 
 
 def main():
@@ -194,7 +202,7 @@ def main():
     """
     
     # Get tweet data
-    retrieve_csv(WEEKS.copy())
+    retrieve_csv()
     
     # Clean tweet data
     clean_csv()
