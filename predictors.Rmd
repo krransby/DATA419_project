@@ -43,6 +43,8 @@ tweet_dataframe <- tweet_dataframe %>%
 Here we are creating the links from the nodes (user_id) to the relations (conversation_id) as a bipartite network.
 We also include the week of the tweet for later on.
 
+We need to be sure that we only include one of each link, as a single user may have been part of the same conversation multiple times.
+
 ```{r}
 
 # Retrieve bipartite links from dataframe
@@ -73,37 +75,46 @@ user_links <- user_links[, c('from', 'to', 'week')]        # change the order of
 ```
 
 
-Create a graph object from the use_links dataframe; filtering by week 52.
+Create a graph object from the use_links dataframe for each week, and store it in the `weekly_network_graph` variable.
 
 ```{r}
 
-weekly_network_graph     <- list()  # tidygraph list of the weekly network 
-weekly_network_dataframe <- list()  # dataframe list of the weekly network 
+  # dataframe list of the weekly network
+weekly_network_dataframe <- data.frame(week=NA,
+                                       name=NA,
+                                       degree=NA,
+                                       community=NA,
+                                       transitivity=NA)
 
-weeknum <- 1         # Starting week number
+weekly_network_dataframe <- weekly_network_dataframe[FALSE,]
+
 totalweeks <- 52     # Finishing week number
 threshold <- 0.3     # Community detecting threshold
+
+week_n_network <- function(n) {
+  
+  user_links %>%
+    filter(week == n) %>%      # Change the week you want to filter here
+    graph_from_data_frame(directed = FALSE) %>%
+    as_tbl_graph() %>%
+    filter(!node_is_isolated()) %>%              # Filtering the isolated nodes
+    mutate(degree = centrality_degree(),         # Calculate the centrality of nodes on degree level
+           community = group_louvain(),          # Group the nodes into communities
+           transitivity = local_transitivity())  # Calculate the transitivity
+  
+}
 
 
 #### Build weekly network, detect local communities by louvain method
 for (n in 1:totalweeks){
   
-  tweet_network <- user_links %>%
-    filter(week == n) %>%      # Change the week you want to filter here
-    graph_from_data_frame(directed = FALSE) %>%
-    as_tbl_graph()
+  graph_data <- as_tibble(week_n_network(n))
   
-  # Community detection
-  weekly_network_graph[[n]] <- tweet_network %>%
-    filter(!node_is_isolated()) %>%              # Filtering the isolated nodes
-    mutate(degree = centrality_degree(),         # Calculate the centrality of nodes on degree level
-           community = group_louvain(),          # Group the nodes into communities
-           transitivity = local_transitivity(),  # Calculate the transitivity
-           modularity = graph_modularity(community))    # Calculate the community's modularity
-  
+  week <- rep(n, times = nrow(graph_data))
   
   # Save network to dataframe format
-  weekly_network_dataframe[[n]] <- as_tibble(weekly_network_graph[[n]])
+  weekly_network_dataframe <- rbind(weekly_network_dataframe, data.frame(week, graph_data))
+  
 }
 
 ```
@@ -114,10 +125,12 @@ find the father communities and son communities week by week
 ```{r message=FALSE, warning=FALSE}
 
 # Data frame that trace the community life line
-community_trace <- data.frame(week_id = NA, 
+community_trace <- data.frame(week = NA, 
                               community_id = NA, 
                               community_id_related = NA,
                               relationship_type = NA)
+
+community_trace <- community_trace[FALSE,]
 
 get_highest_community <- . %>%
   select(community) %>% 
@@ -127,16 +140,21 @@ get_highest_community <- . %>%
 for (weeknum in 1:totalweeks) {
   
   # Get the community numbers from current week
-  reptimebase <- weekly_network_dataframe[[weeknum]] %>%
+  reptimebase <- weekly_network_dataframe %>%
+    filter(week == weeknum) %>%
     get_highest_community()
     
   # Get the community numbers from next week
   if (weeknum < totalweeks) { # Not
-    reptimenext <- weekly_network_dataframe[[weeknum+1]] %>%
+    
+    reptimenext <- weekly_network_dataframe %>%
+      filter(week == weeknum + 1) %>%
       get_highest_community()
     
   } else {
+    
     reptimenext <- 1
+    
   }
   
   # Initial
@@ -146,14 +164,16 @@ for (weeknum in 1:totalweeks) {
   # Compare nodes in every community in current week and the week after
   for (baseComm in 1:reptimebase) {  
     
-    nodes_current_community <- weekly_network_dataframe[[weeknum]] %>% 
+    nodes_current_community <- weekly_network_dataframe %>% 
+      filter(week == weeknum) %>%
       filter(community == baseComm) %>% 
       select(name) 
 
     for (nextComm in 1:reptimenext) {
       if (weeknum < totalweeks) {
         
-          nodes_nextweek_community <- weekly_network_dataframe[[weeknum+1]] %>% 
+          nodes_nextweek_community <- weekly_network_dataframe %>% 
+            filter(week == weeknum+1) %>%
             filter(community == nextComm) %>% 
             select(name) 
           
@@ -184,10 +204,24 @@ for (weeknum in 1:totalweeks) {
 Save the father and son relationship between communities week by week, joined with the community level parameters, degrees / transitivity etc.
 ```{r}
 
-currentweek_degree <- data.frame(currentweek_degree=NA)
-currentweek_transitivity <- data.frame(currentweek_transitivity=NA)
-nextweek_degree <- data.frame(nextweek_degree=NA)
-nextweek_transitivity <- data.frame(nextweek_transitivity=NA)
+currentweek_precictors <- data.frame(y = NA,
+                                     ave_degree = NA,
+                                     transitivity = NA,
+                                     motif = NA,
+                                     density = NA,
+                                     community_id = NA,
+                                     week = NA)
+
+nextweek_predictors <- data.frame(next_y = NA,
+                                  next_ave_degree = NA,
+                                  next_transitivity = NA,
+                                  next_motif = NA,
+                                  next_density = NA,
+                                  next_community_id = NA)
+
+
+currentweek_precictors <- currentweek_precictors[FALSE,]
+nextweek_predictors <- nextweek_predictors[FALSE,]
 
 ### Only display the relationship by current community to son community, filter the "s" type relationship
 expected_community_trace <- community_trace %>% 
@@ -201,7 +235,7 @@ for (n in 1:repvalue){
   
   # Get the current relationship's week number, community_id, son_community_id
   weeknum <- expected_community_trace[n,] %>%
-    select(week_id) %>%
+    select(week) %>%
     as.integer()
   
   community_id <- expected_community_trace[n,] %>% 
@@ -212,74 +246,129 @@ for (n in 1:repvalue){
     select(community_id_related) %>%
     as.integer()
   
-  # Calculate average degree/transitivity for current week community
-  current_week_degree <- weekly_network_dataframe[[weeknum]][weekly_network_dataframe[[weeknum]]$community == community_id, "degree"]
-  current_week_transitivity <- weekly_network_dataframe[[weeknum]][weekly_network_dataframe[[weeknum]]$community == community_id, "transitivity"]
-  curren_degree_mean        <- mean(current_week_degree$degree)
-  current_transitivity_mean <- mean(current_week_transitivity$transitivity)
+  #### Current week:
+  current_community_net <- week_n_network(weeknum)
   
-  # Calculate average degree/transitivity for next week community
-  next_week_degree <- weekly_network_dataframe[[weeknum+1]][weekly_network_dataframe[[weeknum+1]]$community == community_id_related, "degree"]
-  next_week_transitivity <- weekly_network_dataframe[[weeknum+1]][weekly_network_dataframe[[weeknum+1]]$community == community_id_related, "transitivity"]
-  next_degree_mean          <- mean(next_week_degree$degree)
-  next_transitivity_mean    <- mean(next_week_transitivity$transitivity)
+  # Average degree:
+  current_week_degree <- weekly_network_dataframe %>%
+    filter(week == weeknum) %>%
+    filter(community == community_id) %>%
+    select(degree)
   
-  currentweek_degree[n,1] <- curren_degree_mean
-  currentweek_transitivity[n,1] <- current_transitivity_mean
-  nextweek_degree[n,1] <- next_degree_mean
-  nextweek_transitivity[n,1] <- next_transitivity_mean
+  ave_degree <- mean(current_week_degree$degree)
+  
+  # Transitivity:
+  current_week_transitivity <- weekly_network_dataframe %>%
+    filter(week == weeknum) %>%
+    filter(community == community_id) %>%
+    select(transitivity)
+  
+  transitivity <- mean(current_week_transitivity$transitivity)
+  
+  # Density
+  density <- current_community_net %>%
+    filter(community == community_id) %>%
+    graph.density()
+  
+  
+  # 3-motifs
+  motif <- current_community_net %>%
+    filter(community == community_id) %>%
+    count_motifs(3)
+  
+  
+  ## Expected y:
+    
+  # Number of edges
+  exp_y <- current_community_net %>%
+    filter(community == community_id) %>%
+    igraph::gsize()
+  
+  # Number of nodes
+  #exp_y <- current_community_net %>% 
+  #  filter(community == community_id) %>%
+  #  igraph::gorder()
+  
+  
+  
+  
+  #### Next week:
+  current_community_net <- week_n_network(weeknum+1)
+  
+  # Average degree:
+  next_week_degree <- weekly_network_dataframe %>%
+    filter(week == weeknum+1) %>%
+    filter(community == community_id_related) %>%
+    select(degree)
+  
+  next_ave_degree <- mean(next_week_degree$degree)
+  
+  # Transitivity:
+  next_week_transitivity <- weekly_network_dataframe %>%
+    filter(week == weeknum+1) %>%
+    filter(community == community_id_related) %>%
+    select(transitivity)
+  
+  next_transitivity <- mean(next_week_transitivity$transitivity)
+  
+  # Density
+  next_density <- current_community_net %>%
+    filter(community == community_id_related) %>%
+    graph.density()
+  
+  
+  # 3-motifs
+  next_motif <- current_community_net %>%
+    filter(community == community_id_related) %>%
+    count_motifs(3)
+  
+  
+  ## Expected y:
+    
+  # Number of edges
+  next_y <- current_community_net %>%
+    filter(community == community_id_related) %>%
+    igraph::gsize()
+  
+  # Number of nodes
+  #next_y <- current_community_net %>% 
+  #  filter(community == community_id_related) %>%
+  #  igraph::gorder()
+  
+  
+  currentweek_precictors[nrow(currentweek_precictors) + 1,] <- c(exp_y, ave_degree, transitivity, motif, density, community_id, weeknum)
+  nextweek_predictors[nrow(nextweek_predictors) + 1,] <- c(next_y, next_ave_degree, next_transitivity, next_motif, next_density, community_id_related)
+  
 }
 
 # Join the add-on column into father-son relationship data frame 
-expected_community_trace <- cbind(expected_community_trace, currentweek_degree, currentweek_transitivity, nextweek_degree, nextweek_transitivity)
+predictors <- data.frame(currentweek_precictors, nextweek_predictors)
 
 ```
 
 
+plot the graph for a certain week.
 ```{r}
 
 week = 1
-week_1_comm_1 <- weekly_network_graph[[1]] %>%
-  filter(community == 4)
-
-week_1_comm_1 %N>%
-  ggraph(layout = 'kk') + 
-  geom_edge_link(show.legend = FALSE) + 
-  geom_node_point(aes(color = as.factor(community)), size = 5) + 
-  theme_graph()
-
-
-# Density
-density <- week_1_comm_1 %>%
-  graph.density()
-
-# 3-motifs
-motif <- week_1_comm_1 %>%
-  count_motifs(3)
-
-# # of nodes
-nodes <- week_1_comm_1 %>% 
-  igraph::gorder()
-
-# # possible edges
-nodes <- ((nodes * (nodes - 1)) / 2)
-
-links <- week_1_comm_1 %>% 
-  igraph::gsize()
-
-```
-
-
-
-check the community plot for certain week.
-```{r}
-
-week = 1
-weekly_network_graph[[week]] %N>%
+week_n_network(week) %N>%
     ggraph(layout = 'kk') + 
     geom_edge_link(show.legend = FALSE) + 
     geom_node_point(aes(color = as.factor(community)), size = 5) + 
     theme_graph()
+
+```
+
+
+Plot a single community from the given week
+```{r}
+
+week_n_network(week) %>%
+  filter(community == 1) %N>%
+  ggraph(layout = 'kk') + 
+  geom_edge_link(show.legend = FALSE) + 
+  geom_node_point(aes(color = as.factor(community)), size = 5) + 
+  theme_graph()
 
 ```
 
@@ -291,7 +380,7 @@ extrafont::loadfonts() # Prevents errors when building a pdf
 
 pdf("weeks_NZ.pdf")
 for (week in 1:52) {
-  plt <- weekly_network_graph[[week]] %N>%
+  plt <- week_n_network(week) %N>%
     ggraph(layout = 'kk') + 
     geom_edge_link(show.legend = FALSE) + 
     geom_node_point(aes(color = as.factor(community)), size = 5) + 
@@ -306,19 +395,20 @@ dev.off()
 plot the whole network
 ```{r}
 user_links %>% 
-    ggraph(layout = 'stress') + 
-    geom_edge_link(show.legend = FALSE) + 
-    geom_node_point() +
-    theme_graph()
+  ggraph(layout = 'stress') + 
+  geom_edge_link(show.legend = FALSE) + 
+  geom_node_point() +
+  theme_graph()
 ```
 
-Plot community elasticity
 
+Plot community elasticity
 ```{r}
 
-community_graph <- expected_community_trace %>%
-  select(week_id, community_id, community_id_related) %>%
-  rename(to = community_id, week = week_id, from = community_id_related)
+community_graph <- community_trace %>%
+  filter(relationship_type == "s") %>%
+  select(week, community_id, community_id_related) %>%
+  rename(to = community_id, from = community_id_related)
 
 
 community_graph <- community_graph[, c("to", "from", "week")]
@@ -327,11 +417,11 @@ community_network <- community_graph %>%
     graph_from_data_frame(directed = FALSE) %>%
     as_tbl_graph()
 
-community_network %N>%
-    ggraph(layout = 'grid') + 
-    geom_edge_link(show.legend = FALSE) + 
-    geom_node_point(size = 5) + 
-    theme_graph()
+community_network %>%
+  ggraph() + 
+  geom_edge_link(show.legend = FALSE) + 
+  geom_node_point(size = 5)# + 
+  #theme_graph()
 
 ```
 
