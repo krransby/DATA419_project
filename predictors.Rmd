@@ -159,7 +159,8 @@ for (weeknum in 1:totalweeks) {
       filter(week == weeknum) %>%
       filter(community == baseComm) %>% 
       select(name) 
-
+    
+    die_signal = 0
     for (nextComm in 1:reptimenext) {
       if (weeknum < totalweeks) {
         
@@ -184,9 +185,20 @@ for (weeknum in 1:totalweeks) {
             new_row1 = c(weeknum+1, nextComm, baseComm, "f")  ## "y" stands for father_community_type
             community_trace[nrow(community_trace) + 1,] = new_row
             community_trace[nrow(community_trace) + 1,] = new_row1
-        }
-      }
-    }
+          }
+          
+          #Trace the result of intersection comparing
+          if(proportion == 0){
+            die_signal <- die_signal+1
+          }
+          #Put the died community number in the father-son relationship,
+          #if die_signal == reptimenext, which means every community from next week has zero intersection with this current community.
+          if (nextComm == reptimenext & die_signal == reptimenext){
+            new_row = c(weeknum, baseComm, 0, "s")     ## "s" stands for son_community_type
+            community_trace[nrow(community_trace) + 1,] = new_row
+         }
+       }
+     }
   }
 }
 
