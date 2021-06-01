@@ -31,12 +31,34 @@ Can a network's structure be used to predict the growth of a community?
 * What?
 
 
-**Community:** - Nana
-* How do we find them?
+**Community:** - Nana  
 
-**Growth:** - Nana
-* How do we measure it?
+Methods to detect groups according to different parameters:  
+•	**group_components**: Group by connected compenents  
+•	**group_edge_betweenness**: Group densely connected nodes  
+•	**group_fast_greedy**: Group nodes by optimising modularity  
+•	**group_infomap**: Group nodes by minimizing description length  
+•	**group_label_prop**: Group nodes by propagating labels  
+•	**group_leading_eigen**: Group nodes based on the leading eigenvector of the modularity matrix  
+•	**group_louvain**: Group nodes by multilevel optimisation of modularity  
+•	**group_optimal**: Group nodes by optimising the moldularity score  
+•	**group_spinglass**: Group nodes using simulated annealing  
+•	**group_walktrap**: Group nodes via short random walks  
+•	**group_biconnected_component**: Group edges by their membership of the maximal binconnected components  
 
+In this project, we are using **group_louvain** to seperate community.
+
+**Growth:** - Nana  
+
+The definition for community growth:  
+  After the detection of community week by week, Look at the communities from week(n) and week(n+1):    
+    For each community from week(n), repeat the comparation with all the communities from week(n+1):  
+    -> 1, if none of them having intersection, we call the community died;  
+    -> 2, if some of them having certain size of intersection with the chosen community from week(n):  
+      ---> 2.a, calculate the proportion of the intersection against the chosen community from week(n).  
+      ---> 2.b, if the proportion bigger than the threshold (0.3 for example), we call the community from week(n) "Father", and the community from week(n+1) "Son".  
+      
+This growth method will make a many-to-many relatonship for father and son community.  
 
 **Predit:** - Selina
 * How?
@@ -89,5 +111,5 @@ Research analyst objects:
             To be discussed: the number (the density) change over a certain period of time                       
  More to include:  
             The weight of edge  
-            Network on a different relationship: like �mentions� instead of conversation  
+            Network on a different relationship: like “mentions” instead of conversation  
 ```
