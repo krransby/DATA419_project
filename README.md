@@ -28,7 +28,12 @@ Can a network's structure be used to predict the growth of a community?
 
 
 **Structure:** - House
-* What?
+* Average degree: simply the average number of edges per node in the community.	
+* Modularity: Modularity is a measure of the structure of networks or graphs which measures the strength of division of a network into modules (also called groups, clusters or communities).	
+* Transitivty: Transitivity is the overall probability for the network to have adjacent nodes interconnected, thus revealing the existence of tightly connected communities (or clusters, subgroups, cliques).
+* Motif Distribution: Network motifs are recurrent and statistically significant subgraphs or patterns of a larger graph.	
+* Density: describes the portion of the potential connections in a network that are actual connections.
+![image](https://user-images.githubusercontent.com/65093375/120415568-e09cd600-c3af-11eb-83af-160370adea77.png)
 
 
 **Community:** - Nana  
