@@ -7,7 +7,7 @@
 """
 
 __author__ = "Kayle Ransby - 34043590"
-__credits__ = ["Kayle Ransby", "Shuzhen Heng", "Zhihao Song", "Hui Chen", "Giulio Dalla Riva"]
+__credits__ = ["Kayle Ransby", "Shuzhen Heng", "Zhihao Song", "Yun Chen", "Giulio Dalla Riva"]
 __version__ = "1.1.2"
 __license__ = "???"
 
@@ -24,12 +24,12 @@ import nest_asyncio
 
 SEARCH = [
     "nzpol", "NZParliament", "JudithCollinsMP", "johnkeypm", "winstonpeters",
-    "RusselNorman", "jacindaardern", "patrickgowernz", "dbseymour", "ardern", 
-    "collins", "NZNationalParty", "nzlabour", "top_nz", "NZFirst", "Maori Party"
+    "RusselNorman", "jacindaardern", "patrickgowernz", "dbseymour",
+    "NZNationalParty", "nzlabour", "top_nz", "NZFirst", "Maori Party"
           ]
 
 # year, month, day
-END_DATE = datetime.datetime(2020, 12, 31)
+END_DATE = datetime.datetime(2020, 10, 17)
 WEEKS = 52
 
 # directory the .csv files will be placed in
@@ -40,7 +40,7 @@ NZ = "-41.2728,173.2995,800km"              # NZ
 NZAU = "-25.541822,146.437553,3361.56km"    # NZAU
 
 # Fields to be written to the .csv file
-CSV_FORMAT = ["id", "conversation_id", "date", "user_id", "username", "mentions", "hashtags", "replies_count", "retweets_count", "likes_count", "tweet", "urls"]
+CSV_FORMAT = ["id", "conversation_id", "date", "user_id", "username", "mentions", "hashtags", "replies_count", "retweets_count", "likes_count", "urls"]
 
 
 def config(date_start, date_end, term):
@@ -65,7 +65,7 @@ def config(date_start, date_end, term):
     
     # Configure
     c = twint.Config()
-    c.Geo = NZ                     # Uncomment this line to restrict search to NZ
+    #c.Geo = NZ                     # Uncomment this line to restrict search to NZ
     c.Custom["tweet"] = CSV_FORMAT
     c.Since = str(date_start)
     c.Until = str(date_end)
@@ -101,9 +101,12 @@ def retrieve_csv():
     print("Begin tweet scraping ...")
     
     while num_weeks > 0:
+        
+        print("Scraping date range", str(num_weeks) + ":", str(date_start), "-", str(date_end) + ".")
+        
         for term in SEARCH:
             
-            print("Scraping date range", str(num_weeks) + ":", str(date_start), "-", str(date_end) + ".")
+            print("Searching term {} of {}".format(SEARCH.index(term) + 1, len(SEARCH)))
             
             # Get config
             c = config(date_start, date_end, term)
@@ -154,7 +157,9 @@ def identify_week():
     None.
 
     """
-       
+    
+    print("Adding week column ...")
+    
     with open(OUTDIR + '/tweets_cleaned.csv', 'r', encoding="utf8") as in_file, open(OUTDIR + '/tweets_cleaned_week.csv', 'w', encoding="utf8") as out_file:
         
         header = in_file.readline().strip().split(',') # skip the first line
@@ -167,7 +172,7 @@ def identify_week():
             
             line_list = line.split(',')
             
-            if len(line_list) == len(CSV_FORMAT): # only write lines that have all variables
+            if len(line_list) > 1: # Ignore empty lines
             
                 line_date = line_list[CSV_FORMAT.index('date')]
                 
@@ -189,6 +194,8 @@ def identify_week():
                         date_start -= datetime.timedelta(days=7)
                         date_end -= datetime.timedelta(days=7)
                         week -= 1
+        
+        print("Week column added.")
 
 
 def main():
