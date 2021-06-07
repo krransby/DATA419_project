@@ -1,6 +1,6 @@
 ---
-title: "Group Project"
-author: "Kayle Ransby", "Shuzhen Heng", "Zhihao Song", "Hui Chen", "Giulio Dalla Riva"
+title: "DATA419"
+author: "Kayle Ransby", "Shuzhen Heng", "Zhihao Song", "Yun Chen", "Giulio Dalla Riva"
 date: "19/05/2021"
 output: pdf_document
 ---
@@ -18,22 +18,18 @@ library(ggraph)
 
 Here we load the tweet data into the `tweet_dataframe` variable.
 
+We intend on building the network based on the user_id, conversation_id and week variables; so filter out entries that have any of these variables empty.
+
 ```{r message=FALSE, warning=FALSE}
 
 # Load tweet data
 tweet_dataframe <- "Tweet file/tweets_cleaned_week.csv" %>%
-  read_csv()
-
-```
-
-We intend on building the network based on the user_id, conversation_id and week variables; so filter out entries that have any of these variables empty.
-
-```{r}
-# Filter tweet data
-tweet_dataframe <- tweet_dataframe %>% 
+  read_csv() %>%
+  select(user_id, conversation_id, week) %>%
   filter(!is.na(user_id),
          !is.na(conversation_id),
          !is.na(week))
+
 ```
 
 Here we are creating the links from the nodes (user_id) to the relations (conversation_id) as a bipartite network. We also include the week of the tweet for later on.
@@ -44,7 +40,6 @@ We need to be sure that we only include one of each link, as a single user may h
 
 # Retrieve bipartite links from dataframe
 bipartite_links <- tweet_dataframe %>%
-  select(user_id, conversation_id, week) %>%
   rename(to = user_id,from = conversation_id) %>%
   group_by(to, from, week) %>%
   slice(1) %>%
@@ -61,9 +56,12 @@ user_links <- bipartite_links %>%
   full_join(bipartite_links, by = c("from", "week")) %>%   # we are full_joining links with links, and connecting them via the columns from and week
   filter(to.x != to.y) %>%                                 # we don't care about self links
   select(-from) %>%                                        # we only care about the users, not the tweets now
-  rename(from = to.x, to = to.y)                           # and we still want the from and to names for the columns
+  rename(from = to.x, to = to.y) %>%                       # and we still want the from and to names for the columns
+  group_by(to, from, week) %>%
+  slice(1) %>%
+  ungroup()
 
-user_links <- user_links[, c('from', 'to', 'week')]        # change the order of the columns to make it easier to view
+user_links <- user_links[, c('to', 'from', 'week')]        # change the order of the columns to make it easier to view
 
 ```
 
@@ -71,7 +69,9 @@ Create a graph object from the use_links dataframe for each week, and store it i
 
 ```{r}
 
-  # dataframe list of the weekly network
+totalweeks <- 52     # Finishing week number
+
+# dataframe list of the weekly network
 weekly_network_dataframe <- data.frame(week=NA,
                                        name=NA,
                                        degree=NA,
@@ -80,9 +80,7 @@ weekly_network_dataframe <- data.frame(week=NA,
 
 weekly_network_dataframe <- weekly_network_dataframe[FALSE,]
 
-totalweeks <- 52     # Finishing week number
-threshold <- 0.3     # Community detecting threshold
-
+# Function to create a network at week n
 week_n_network <- function(n) {
   
   user_links %>%
@@ -90,9 +88,7 @@ week_n_network <- function(n) {
     graph_from_data_frame(directed = FALSE) %>%
     as_tbl_graph() %>%
     filter(!node_is_isolated()) %>%              # Filtering the isolated nodes
-    mutate(degree = centrality_degree(),         # Calculate the centrality of nodes on degree level
-           community = group_louvain(),          # Group the nodes into communities
-           transitivity = local_transitivity())  # Calculate the transitivity
+    mutate(community = group_louvain())          # Group the nodes into communities
   
 }
 
@@ -123,86 +119,124 @@ community_trace <- data.frame(week = NA,
 
 community_trace <- community_trace[FALSE,]
 
-get_highest_community <- . %>%
+# Function to get the number of communities from a dataframe
+get_number_of_communities <- . %>%
   select(community) %>% 
   max() %>%
   as.integer()
 
+# Threshold for similarity between two communities
+threshold <- 0.3
+
 for (weeknum in 1:totalweeks) {
   
-  # Get the community numbers from current week
-  reptimebase <- weekly_network_dataframe %>%
+  # Get the number of communities for the current week
+  current_num_comm <- weekly_network_dataframe %>%
     filter(week == weeknum) %>%
-    get_highest_community()
+    get_number_of_communities()
     
-  # Get the community numbers from next week
-  if (weeknum < totalweeks) { # Not
+  # Get the number of communities for the current week
+  if (weeknum < totalweeks) {
     
-    reptimenext <- weekly_network_dataframe %>%
+    next_num_comm <- weekly_network_dataframe %>%
       filter(week == weeknum + 1) %>%
-      get_highest_community()
+      get_number_of_communities()
     
   } else {
     
-    reptimenext <- 1
+    next_num_comm <- 1
     
   }
   
-  # Initial
-  baseComm = 1
-  nextComm = 1
   
   # Compare nodes in every community in current week and the week after
-  for (baseComm in 1:reptimebase) {  
+  for (current_comm in 1:current_num_comm) {  
     
     nodes_current_community <- weekly_network_dataframe %>% 
       filter(week == weeknum) %>%
-      filter(community == baseComm) %>% 
-      select(name) 
+      filter(community == current_comm) %>% 
+      select(name)
     
-    die_signal = 0
-    for (nextComm in 1:reptimenext) {
+    die_signal <- 0
+    
+    for (next_comm in 1:next_num_comm) {
       if (weeknum < totalweeks) {
         
-          nodes_nextweek_community <- weekly_network_dataframe %>% 
-            filter(week == weeknum+1) %>%
-            filter(community == nextComm) %>% 
-            select(name) 
+        nodes_nextweek_community <- weekly_network_dataframe %>% 
+          filter(week == weeknum+1) %>%
+          filter(community == next_comm) %>% 
+          select(name)
+        
+        ### Get the intersection of communities from current week and next week
+        internodes <- intersect(nodes_current_community, nodes_nextweek_community)
+        
+        ### Calculate the proportion of intersection
+        proportion <- count(internodes) / count(nodes_current_community)
+        
+        ### If proportion bigger than threshold:
+        ### ---1, update the son_community for current week
+        ### ---2, update the father_community value for next week community
+        ### ---3, if it is the last week, finish the cooperation
+        if (proportion >= threshold){
           
-          ### Get the intersection of communities from current week and next week
-          internodes <- intersect(nodes_current_community, nodes_nextweek_community)
+          son_row = c(weeknum, current_comm, next_comm, "s")       ## "s" stands for son_community_type
+          father_row = c(weeknum+1, next_comm, current_comm, "f")  ## "f" stands for father_community_type
+          community_trace[nrow(community_trace) + 1,] <- son_row
+          community_trace[nrow(community_trace) + 1,] <- father_row
           
-          ### Calculate the proportion of intersection
-          proportion <- count(internodes) / count(nodes_current_community)
+        }
+        
+        # Trace the result of intersection comparing
+        if(proportion < threshold){
           
-          ### If proportion bigger than threshold:
-          ### ---1, update the son_community for current week
-          ### ---2, update the father_community value for next week community
-          ### ---3, if it is the last week, finish the cooperation
-          if (proportion > threshold){
-            
-            new_row = c(weeknum, baseComm, nextComm, "s")     ## "s" stands for son_community_type
-            new_row1 = c(weeknum+1, nextComm, baseComm, "f")  ## "y" stands for father_community_type
-            community_trace[nrow(community_trace) + 1,] = new_row
-            community_trace[nrow(community_trace) + 1,] = new_row1
-          }
+          die_signal <- die_signal + 1
           
-          #Trace the result of intersection comparing
-          if(proportion == 0){
-            die_signal <- die_signal+1
-          }
-          #Put the died community number in the father-son relationship,
-          #if die_signal == reptimenext, which means every community from next week has zero intersection with this current community.
-          if (nextComm == reptimenext & die_signal == reptimenext){
-            new_row = c(weeknum, baseComm, 0, "s")     ## "s" stands for son_community_type
-            community_trace[nrow(community_trace) + 1,] = new_row
-         }
-       }
-     }
+        }
+        
+        # Put the dead community number in the father-son relationship,
+        # if die_signal == next_num_comm, which means every community from next week has zero intersection with this current community.
+        if (next_comm == next_num_comm & die_signal == next_num_comm){
+          
+          son_row = c(weeknum, current_comm, 0, "s")              ## "s" stands for son_community_type
+          community_trace[nrow(community_trace) + 1,] = son_row
+          
+        }
+      }
+    }
   }
 }
 
 ```
+
+We now know what communities continue to live and which ones die. However there is no way to know currently if a community has been born.
+
+```{r}
+
+for (cweek in 1:totalweeks) { # loop over every week
+  
+  # Number of communities to look through
+  num_comm <- weekly_network_dataframe %>%
+    filter(week == cweek) %>%
+    get_number_of_communities()
+  
+  # Look at the fathers for this week
+  curr_fathers <- community_trace %>%
+    filter(week == cweek) %>%
+    filter(relationship_type == "f")
+  
+  for (comm in 1:num_comm) { # loop over every community
+    
+    if (!(comm %in% curr_fathers[,2])) {
+      
+      born_row <- c(cweek, comm, 0, "f")
+      community_trace[nrow(community_trace) + 1,] = born_row
+      
+    }
+  }
+}
+
+```
+
 
 Save the father and son relationship between communities week by week, joined with the community level parameters, degrees / transitivity etc.
 
@@ -252,56 +286,47 @@ repvalue <- expected_community_trace %>%
 # function to get the predictors for the given week and community_id
 get_week_predictors <- function(weeknum, community_id) {
   
-  current_community_net <- week_n_network(weeknum)
+  # Create a network for the current week and community
+  current_community_net <- week_n_network(weeknum) %>%
+    filter(community == community_id)
   
   # Average degree:
-  current_week_degree <- weekly_network_dataframe %>%
-    filter(week == weeknum) %>%
-    filter(community == community_id) %>%
-    select(degree)
-  
-  ave_degree <- mean(current_week_degree$degree)
+  ave_degree <- current_community_net %>%
+    degree() %>%
+    mean()
   
   # Transitivity:
-  current_week_transitivity <- weekly_network_dataframe %>%
-    filter(week == weeknum) %>%
-    filter(community == community_id) %>%
-    select(transitivity)
+  transitivity <- current_community_net %>%
+    transitivity()
   
-  transitivity <- mean(current_week_transitivity$transitivity)
+  if (is.nan(transitivity)) { # is NaN if no trangles are found, so set to 0
+    transitivity <- 0
+  }
   
   # Density
   density <- current_community_net %>%
-    filter(community == community_id) %>%
     graph.density()
-  
   
   # 3-motifs
   thr_motif <- current_community_net %>%
-    filter(community == community_id) %>%
     motifs(3)
   
   thr_motif <- thr_motif[3:4] # Remove Na(s)
   
-  
   # 4-motifs
   fou_motif <- current_community_net %>%
-    filter(community == community_id) %>%
     motifs(4)
   
   fou_motif <- c(fou_motif[5], fou_motif[7:11]) # Remove Na(s)
-  
   
   ## Expected y:
     
   # Number of edges
   exp_y <- current_community_net %>%
-    filter(community == community_id) %>%
     igraph::gsize()
   
   # Number of nodes
   #exp_y <- current_community_net %>% 
-  #  filter(community == community_id) %>%
   #  igraph::gorder()
   
   c(exp_y, ave_degree, transitivity, thr_motif, fou_motif, density)
@@ -329,14 +354,33 @@ for (n in 1:repvalue){
   
   
   #### Next week:
-  next_week <- c(get_week_predictors(weeknum+1, community_id_related), community_id_related)
-  nextweek_predictors[nrow(nextweek_predictors) + 1,] <- next_week
+  if (!(community_id_related == 0)) { # If there is a related community
+    
+    next_week <- c(get_week_predictors(weeknum+1, community_id_related), community_id_related)
+    nextweek_predictors[nrow(nextweek_predictors) + 1,] <- next_week
+    
+  } else { # the community is dead, set all predictors to 0
+    
+    next_week <- c(rep(0, times = 12), community_id_related)
+    nextweek_predictors[nrow(nextweek_predictors) + 1,] <- next_week
+    
+  }
 }
 
 # Join the add-on column into father-son relationship data frame 
 predictors <- data.frame(currentweek_precictors, nextweek_predictors)
 
 ```
+
+Save the predictors as a separate .csv file
+
+```{r}
+
+write.csv(predictors, "predictors.csv", row.names = FALSE)
+
+```
+
+## From here on out, it's just plotting different things...
 
 plot the whole network
 
@@ -354,12 +398,12 @@ plot the graph for a certain week.
 
 ```{r}
 
-week = 4
-week_n_network(week) %N>%
-    ggraph(layout = 'kk') + 
-    geom_edge_link(show.legend = FALSE) + 
-    geom_node_point(aes(color = as.factor(community)), size = 5) + 
-    theme_graph()
+week = 1
+week_n_network(week) %>%
+  ggraph(layout = 'kk') + 
+  geom_edge_link(show.legend = FALSE) + 
+  geom_node_point(aes(color = as.factor(community)), size = 5) + 
+  theme_graph()
 
 ```
 
@@ -395,26 +439,73 @@ dev.off()
 
 ```
 
-Plot community elasticity
+Plot community time series
 
 ```{r}
 
-community_graph <- community_trace %>%
-  filter(relationship_type == "s") %>%
-  select(week, community_id, community_id_related) %>%
-  rename(to = community_id, from = community_id_related)
+communities <- c()    # Vector to store the number of communities in each week
+born <- c()
+dead <- c()
+survive <- c()
+
+for (inc in 1:52) {
+  
+  current_week <- community_trace %>%
+    filter(week == inc)
+  
+  # get the number of born communities in the current week:
+  tmp_born <- current_week %>%
+    filter(relationship_type == 'f') %>%
+    filter(community_id_related == 0) %>%
+    dim()
+  
+  # get the number of dead communities in the current week:
+  tmp_dead <- current_week %>%
+    filter(relationship_type == 's') %>%
+    filter(community_id_related == 0) %>%
+    dim()
+  
+  
+  # get the number of communities that continue on to the next week:
+  tmp_cont <- current_week %>%
+    filter(relationship_type == 's') %>%
+    filter(community_id_related != 0) %>%
+    dim()
+  
+  
+  # Calculate the number of communities in the current week:
+  tmp_comm <- weekly_network_dataframe %>%
+    group_by(week, community) %>%
+    slice(1) %>%
+    ungroup() %>%
+    filter(week == inc) %>%
+    data.frame() %>%
+    summarise(community)
+
+  communities[inc] <- length(tmp_comm$community)
+  born[inc] <- tmp_born[1]
+  dead[inc] <- tmp_dead[1]
+  survive[inc] <- tmp_cont[1]
+  
+}
 
 
-community_graph <- community_graph[, c("to", "from", "week")]
+# Create a dataframe using the four vectors
+data <- data.frame(week = rep(seq(1:52), times = 4),
+                 type = rep(c("Total", "Born", "Dead", "Survive"), each = 52),
+                 measures = c(communities, born, dead, survive))
 
-community_network <- community_graph %>%
-    graph_from_data_frame(directed = FALSE) %>%
-    as_tbl_graph()
+# Create a plot showing the different measures by week
+p <- ggplot(data, aes(x = week, y = measures, group = type)) +
+  ggtitle("Time series for communities") +
+  geom_smooth(formula = y ~ x, method = "loess", fill = NA, aes(color = type))
 
-community_network %>%
-  ggraph() + 
-  geom_edge_link(show.legend = FALSE) + 
-  geom_node_point(size = 5)# + 
-  #theme_graph()
+# Show the plot
+p
+
+# Save the plot as a .svg file
+svg("community_time_series.svg", width = 7.5, height = 6)
+p
+dev.off()
 
 ```
