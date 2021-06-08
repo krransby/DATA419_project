@@ -65,7 +65,7 @@ user_links <- user_links[, c('to', 'from', 'week')]        # change the order of
 
 ```
 
-Create a graph object from the use_links dataframe for each week, and store it in the `weekly_network_graph` variable.
+Here we are creating a graph object from the user_links dataframe for each week, identifying the communities using the Louvian method, then storing the node data in the `weekly_network_dataframe` variable.
 
 ```{r}
 
@@ -107,7 +107,7 @@ for (n in 1:totalweeks){
 
 ```
 
-find the father communities and son communities week by week
+find the father communities and son communities week by week by comparing the similarity of different community nodes.
 
 ```{r message=FALSE, warning=FALSE}
 
@@ -208,7 +208,9 @@ for (weeknum in 1:totalweeks) {
 
 ```
 
-We now know what communities continue to live and which ones die. However there is no way to know currently if a community has been born.
+We now know what communities continue to live and which ones die. However there is no way to know currently if a community has been born (is new in the given week).
+
+So we can now go through the `community_trace` dataframe and look for any communities that do not have fathers and give them a father of 0 (which means it was born this week).
 
 ```{r}
 
@@ -237,8 +239,7 @@ for (cweek in 1:totalweeks) { # loop over every week
 
 ```
 
-
-Save the father and son relationship between communities week by week, joined with the community level parameters, degrees / transitivity etc.
+We now find the different predictors for each community, and create a dataframe containing a community, its predictors, its son (child community) and the som community's predictors.
 
 ```{r}
 
@@ -372,11 +373,11 @@ predictors <- data.frame(currentweek_precictors, nextweek_predictors)
 
 ```
 
-Save the predictors as a separate .csv file
+Now we export these predictors as two separate .csv files
 
 ```{r}
 
-write.csv(predictors, "predictors.csv", row.names = FALSE)
+write.csv(predictors, "predictors/predictors.csv", row.names = FALSE)
 
 ```
 
@@ -412,7 +413,7 @@ Plot a single community from the given week
 ```{r}
 
 week_n_network(week) %>%
-  filter(community == 2) %N>%
+  filter(community == 1) %N>%
   ggraph(layout = 'kk') + 
   geom_edge_link(show.legend = FALSE) + 
   geom_node_point(aes(color = as.factor(community)), size = 5) + 
@@ -426,8 +427,8 @@ Plot every week's graph in a .pdf file (Do not try to run this, it will not work
 
 extrafont::loadfonts() # Prevents errors when building a pdf
 
-pdf("weeks_NZ.pdf")
-for (week in 1:52) {
+pdf("visualisations/weeks_NZ.pdf")
+for (week in 1:totalweeks) {
   plt <- week_n_network(week) %N>%
     ggraph(layout = 'kk') + 
     geom_edge_link(show.legend = FALSE) + 
@@ -448,7 +449,7 @@ born <- c()
 dead <- c()
 survive <- c()
 
-for (inc in 1:52) {
+for (inc in 1:totalweeks) {
   
   current_week <- community_trace %>%
     filter(week == inc)
@@ -503,9 +504,16 @@ p <- ggplot(data, aes(x = week, y = measures, group = type)) +
 # Show the plot
 p
 
+```
+
+Save the plot as an svg:
+
+```{r}
+
 # Save the plot as a .svg file
-svg("community_time_series.svg", width = 7.5, height = 6)
+svg("visualisations/community_time_series.svg", width = 10, height = 6)
 p
 dev.off()
 
 ```
+

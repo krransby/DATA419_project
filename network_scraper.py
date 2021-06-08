@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
     Purpose: DATA419 Project 2021
-    Title: Can we use network structures to predict the growth of communities?
+    Title: Can we use a community's structure to predict the growth and future of that community?
     Source: https://github.com/krransby/DATA419_project
 """
 
@@ -23,9 +23,12 @@ import nest_asyncio
 # 'Globals'
 
 SEARCH = [
-    "nzpol", "NZParliament", "JudithCollinsMP", "johnkeypm", "winstonpeters",
-    "RusselNorman", "jacindaardern", "patrickgowernz", "dbseymour",
-    "NZNationalParty", "nzlabour", "top_nz", "NZFirst", "Maori Party"
+    "nzpol", "NZParliament",    
+    "New Zealand Labour Party", "NZ Labour Party", "Labour Party", "nzlabour", "jacindaardern", "Jacinda Ardern",
+    "New Zealand National Party", "NZ National Party", "National Party", "NZNationalParty", "JudithCollinsMP", "Judith Collins",
+    "Green Party New Zealand", "Green Party NZ", "Green Party", "NZGreens", "jamespeshaw", "James Shaw", "MaramaDavidson", "Marama Davidson",
+    "ACT New Zealand", "ACT NZ", "ACT Party", "actparty", "dbseymour", "David Seymour",
+    "Māori Party", "Maori Party", "Maori_Party", "Rawiri_Waititi", "Rawiri Waititi", "packer_deb", "Debbie Ngarewa-Packer"
           ]
 
 # year, month, day
@@ -65,7 +68,7 @@ def config(date_start, date_end, term):
     
     # Configure
     c = twint.Config()
-    #c.Geo = NZ                     # Uncomment this line to restrict search to NZ
+    c.Geo = NZ                     # Uncomment this line to restrict search to NZ
     c.Custom["tweet"] = CSV_FORMAT
     c.Since = str(date_start)
     c.Until = str(date_end)
@@ -170,9 +173,10 @@ def identify_week():
         
         for line in in_file:
             
-            line_list = line.split(',')
             
-            if len(line_list) > 1: # Ignore empty lines
+            if line != "\n": # Ignore empty lines
+                
+                line_list = line.split(',')
             
                 line_date = line_list[CSV_FORMAT.index('date')]
                 
@@ -209,10 +213,10 @@ def main():
     """
     
     # Get tweet data
-    retrieve_csv()
+    #retrieve_csv()
     
     # Clean tweet data
-    clean_csv()
+    #clean_csv()
     
     # Add the week tweets were posted to new .csv file
     identify_week()
