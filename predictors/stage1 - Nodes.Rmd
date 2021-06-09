@@ -1,0 +1,151 @@
+---
+title: "Stage 1"
+author: "yunchen"
+date: "6/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+library(ggplot2)
+library(MASS)
+library(e1071)
+library(caret)
+library(tidyverse)
+library(fastAdaboost)
+library(randomForest)
+data<-read.csv("predictors_nodes.csv")
+#remove unwanted columns
+
+
+
+data <-data[,1:15]
+data<- data[,-grep("community_id|week|motif_4_4",colnames(data))]
+pcadata<-data
+data
+```
+
+```{r Binary variable}
+#add a column of binary to indicate dead communities
+data<-data %>%
+  mutate(dead = if_else(next_y == 0,
+                         true = "Yes",
+                        false = "No"))
+
+
+data <- data[,-grep("next_y",colnames(data))]
+table(data$dead)
+# No Yes 
+#148 302 
+nrow(data)
+302 / nrow(data)#0.67 as baselines
+```
+
+```{r SPLIT DATA}
+set.seed(1)
+row.number <- sample(1:nrow(data), 0.9*nrow(data))
+train = data[row.number,]
+test = data[-row.number,]
+dim(train)
+dim(test)
+
+```
+
+
+```{r MAIN FACTIOR}
+library(psych)
+scale_pca <- scale(pcadata, center = T, scale = T)
+pca_result1 <- principal(scale_pca, nfactors=4,rotate="varimax") #
+
+summary(pca_result1)
+pca_result1$communality
+```
+
+
+
+```{r PCA}
+typeof(as.data.frame(pcadata))
+pca_result <- prcomp(~y+density+motif_4_6+motif_4_5+motif_4_3+motif_4_2+motif_4_1+motif_3_2+motif_3_1+transitivity+ave_degree,data = tibble(pcadata),rank=4, center = TRUE,scale = TRUE,retx=T) # 
+summary(pca_result) # 
+loadings(pca_result)
+plot(pca_result,type="lines")
+pcav<-pca_result$x
+```
+
+
+
+
+
+```{r}
+train$dead<-as.factor(train$dead)
+test$dead<-as.factor(test$dead)
+```
+
+```{r}
+#specify the cross-validation method
+ctrl <- trainControl(method = "cv",
+                       number = 10,
+                       classProbs = TRUE,
+                       summaryFunction = twoClassSummary)
+
+set.seed(7)
+#
+
+Bm <- train(dead~., data = train, method = "adaboost" , trControl = ctrl, preProcess=c('scale','pca'))
+preda<-predict(Bm, newdata = test)
+confusionMatrix(preda,test$dead)
+# without pca
+#          Reference
+#Prediction No Yes
+#       No   5   4
+#       Yes 10  26
+#Accuracy : 0.6889   
+# with pca
+#          Reference
+#Prediction No Yes
+#       No   5   2
+#       Yes 10  28
+#Accuracy : 0.7333        
+```
+
+
+
+```{r pressure, echo=FALSE}
+#specify the cross-validation method
+ctrl <- trainControl(method = "cv",
+                       number = 10,
+                       classProbs = TRUE,
+                       summaryFunction = twoClassSummary)
+
+set.seed(7)
+#
+
+Bm <- train(dead~., data = train, method = "lm" , trControl = ctrl, preProcess=c('scale','pca'))
+preda<-predict(Bm, newdata = test)
+confusionMatrix(preda,test$dead)
+# without pca
+#          Reference
+#Prediction No Yes
+#       No   5   4
+#       Yes 10  26
+#Accuracy : 0.6889   
+# with pca
+#          Reference
+#Prediction No Yes
+#       No   5   2
+#       Yes 10  28
+#Accuracy : 0.7333   
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

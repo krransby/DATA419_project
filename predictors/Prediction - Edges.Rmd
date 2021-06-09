@@ -1,0 +1,133 @@
+---
+title: "Prediction"
+author: "yunchen"
+date: "5/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(MASS)
+library(e1071)
+library(caret)
+library(tidyverse)
+
+```
+
+
+
+```{r pressure, echo=FALSE}
+data<-read.csv("predictors_edges.csv")
+#remove columns that I don't need
+
+data <- data[,1:16]
+data <- data[,-grep("community_id|week|motif_4_4|motif_4_5",colnames(data))]
+data<-filter(data, next_y != 0)
+brmse <- sqrt(sum((data$y - data$next_y)^2)/length(data$next_y)) #baseline RMSE
+bmse <- sum((data$y - data$next_y)^2)/length(data$next_y)
+brmse
+```
+
+
+```{r glmnet}
+set.seed(2)
+fitControl <- trainControl(method = "LOOCV")
+expand.grid<- expand.grid(
+  alpha = 0:1,
+  lambda = seq(0.0001, 1, length = 100)
+)
+
+glmnetm <- train(next_y~., data = data, method = "glmnet", trControl = fitControl, tuneGrid = expand.grid, preProcess=c('scale','pca'))
+mean(glmnetm$results[,3]) 
+#cv_rmse
+#10.60821 pca
+#10.58467 without pca
+```
+
+```{r bagEarth}
+
+
+#specify the cross-validation method
+ctrl <- trainControl(method = "LOOCV")
+set.seed(7)
+#fit a regression model and use LOOCV to evaluate performance
+bagEarthm <- train(next_y~., data = data, method = "bagEarth", trControl = ctrl,tuneLength = 10)
+
+#view summary of LOOCV               
+mean(bagEarthm$results[,3]) 
+#cv_rmse
+# 10.2163 without pca  
+#22.96152 with pca
+```
+
+```{r cubist BEST MODEL}
+
+#specify the cross-validation method
+ctrl <- trainControl(method = "LOOCV")
+
+#fit a regression model and use LOOCV to evaluate performance
+cubistm <- train(next_y~., data = data, method = "cubist", trControl = ctrl, tuneLength = 15, preProcess=c('scale','pca'))
+
+mean(cubistm$results[,3])              
+#10.14385 without pca
+#10.44625 with pca
+```
+
+```{r gradient boosting machine}
+set.seed(4)
+fitControl <- trainControl(method = "LOOCV")
+gbmGrid <-  expand.grid(interaction.depth = c(1, 5, 9), 
+                        n.trees = (1:30)*50, 
+                        shrinkage = 0.1,
+                        n.minobsinnode = 20)
+gbmFit <-train(next_y~., data = data, method = "gbm", trControl = fitControl,tuneGrid = gbmGrid)
+#pred<-predict(gbmFit, newdata = test)
+#RMSE(pred,test$next_y)
+mean(gbmFit$results[,5])
+#20.23288 without pca
+#15.77416 with pca
+
+```
+
+```{r Partial Least Squares}
+set.seed(5)
+fitControl <- trainControl(method = "LOOCV")
+
+plsFit <-train(next_y~., data = data, method = "pls", trControl = fitControl )
+mean(plsFit$results[,2])
+#18.90911 with pca
+#19.03713 without pca
+```
+
+
+
+```{r L2 Regularized Support Vector Machine (dual) with Linear Kernel}
+set.seed(5)
+fitControl <- trainControl(method = "LOOCV")
+
+L2Fit <-train(next_y~., data = data, method = "svmLinear3", trControl = fitControl,preProc = c("scale","pca"))
+print(L2Fit)
+#RMSE(pred,test$next_y)
+mean(L2Fit$results[,3])
+#14.00288 with pca
+#12.51874 without
+```
+
+
+```{r}
+set.seed(2)
+fitControl <- trainControl(method = "LOOCV")
+
+lm <- train(next_y~., data = data, method = "lm", trControl = fitControl, tuneLength = 5)
+
+lm$results
+#10.45655 with pca
+#13.62987 without pca
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
